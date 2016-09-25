@@ -1,1 +1,1 @@
-# ENES100
+# This is the github repository for the WetWare ENES 100 team. This is a tool for sharing and public upload of files related to all of the # possible programming challenges (PS 5, general OSV process.)
