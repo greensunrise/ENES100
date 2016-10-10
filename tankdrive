@@ -1,5 +1,5 @@
-#include <SoftwareSerial.h>
-#include <dfr_tank.h>
+#include <SoftwareSerial.h> //Lines 1-4 concern libraries and are nessecary
+#include <dfr_tank.h> 
 #include "enes100.h"
 DFRTank tank;
 
@@ -8,36 +8,43 @@ enes100::RfClient<SoftwareSerial> rf(&mySerial);
 enes100::Marker marker;
 int markerNumber=16; //update this with whatever black and white marker you receive
 
-void getpos() {
-  while (!rf.receiveMarker(&marker, 16)) { //If it failed...
-    rf.sendMessage("It failedto get position.");
+void getpos() { //This is the routine that is called to get the position of the tank many times throughout the code.
+  while (!rf.receiveMarker(&marker, 16)) { //This runs the builtin function that fills the .marker structure with x,y,and theta. 
+    rf.sendMessage("\nIt failedto get position.\n"); //If it didn't work, it will print this message and try again.
   }
- rf.sendMessage("\nGot my position.\n");
+ rf.sendMessage("\nGot my position.\n"); //This will tell you if it worked or not.
   
 }
 
-void die() {
+void die() { //This is the routine that the tank executes when it gets to the water (ideally...)
   while(true) { //Wait forever
-      tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
+      tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0); 
       rf.sendMessage("Splashdown!"); //I did it
       delay(30000);
     }
   }
-void orient() {
-  getpos();
-  float dx = (2.91 - marker.x); float dy = (.37 - marker.y); //Figure out distances from position
-  float thetareq = atan2(dy,dx); //Figure out required angle
-  rf.sendMessage("\n");
-  rf.sendMessage("Got into orient code.");
-  float dtheta = thetareq - marker.theta;
-    while (dtheta < .2) {
+void orient() { //This is the routine that the tank uses to get itself pointed in the correct direction towards the water bowl.
+  getpos(); //Gets its position 
+  float dx = (2.91 - marker.x); float dy = (.37 - marker.y); //Figure out distances from position. 
+  
+  // The above values must be edited to match the actual place of the water bowl! It is not actually at 3.1, .4. You need to check
+  // what the actual value is by running something like "positionfigureoutter" and putting the black+white square right on the bowl.
+  
+  float thetareq = atan2(dy,dx); //Figure out required angle by using arctan. This puts out a value between -pi and pi.. Make sure this works
+  
+  rf.sendMessage("\n Orienting...."); //Telling RF that we made it here
+  
+  float dtheta = thetareq - marker.theta; //Calculates its current angular distance from where it needs to be to go right to the water
+  
+  while (dtheta < .2) { //So while the angle is too small, aka it needs to turn ANTI-CLOCKWISE....
       getpos(); 
-      tank.setLeftMotorPWM(-250); tank.setRightMotorPWM(250);
-      delay(100); //Change this later? Only turns for .1 sec. 
-      tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
-      getpos();
-      float dtheta = thetareq - marker.theta;
-    while(dtheta > .2) {
+      tank.setLeftMotorPWM(-250); tank.setRightMotorPWM(250); //It turns anticlockwise.
+      delay(100); //For .1 second, maybe change this?
+      tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0); //Turns off motors.
+      getpos(); //Gets the current angle
+      float dtheta = thetareq - marker.theta; //Prepares to go through loop again.
+      
+  while(dtheta > .2) { //Angle is too big? It turns CLOCKWISE.  
       getpos(); 
       tank.setLeftMotorPWM(250); tank.setRightMotorPWM(-250);
       delay(100); //Change this later? Only turns for .1 sec. 
@@ -46,9 +53,11 @@ void orient() {
       float dtheta = thetareq - marker.theta;
     }
   }
-   rf.sendMessage("marker.theta is"); rf.sendMessage(marker.theta); 
-   rf.sendMessage("thetareq is"); rf.sendMessage(thetareq); //Tell RF the current angle and the needed angle.
+   rf.sendMessage("\n marker.theta is"); rf.sendMessage(marker.theta); 
+   rf.sendMessage("\n thetareq is"); rf.sendMessage(thetareq); //Tell RF the current angle and the needed angle.
 }
+
+//Okay we have arrived at the actual code.
 
 void setup()
 {
@@ -61,23 +70,30 @@ void setup()
   pinMode(8, INPUT); //since pin 8 is RX, it receives as an input
   pinMode(9, OUTPUT); //since pin 9 is TX, it transmits as an output
   
-  rf.resetServer();
+  rf.resetServer(); //Nessecary to reset connections.
   rf.sendMessage("\nWetWare is Connected\n"); //sent to mission control
   Serial.println("Wetware is Connected"); //sent to student's serial monitor
-  tank.init();
-  getpos();
-  orient();
+  tank.init(); //Idk what this is but it starts it up
+  getpos(); //get position
+  orient(); //run orient code
 }
 
 void loop() {
-  getpos();
-  float dx = 3.100 - marker.x; float dy = 3.100 - marker.y; //Figure out distances from position
+  getpos(); //get position
+  
+  float dx = (2.91 - marker.x); float dy = (.37 - marker.y); //Figure out distances from position. 
+  // The above values must be edited to match the actual place of the water bowl! It is not actually at 3.1, .4. You need to check
+  // what the actual value is by running something like "positionfigureoutter" and putting the black+white square right on the bowl.
+
+  
   float distance = sqrt(sq(dx) + sq(dy)); //Gets distance from target.
-  if (distance < .15) { //If we have arrived...
-    die(); //heh
+  if (distance < .15) { //Within some arbitrary threshold. You may have to play with this.
+    die(); //Runs that die code.
   }
-  tank.setLeftMotorPWM(200); tank.setRightMotorPWM(200); //Go west, young man
-  delay(1000);
-  tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
-  orient();
+  tank.setLeftMotorPWM(200); tank.setRightMotorPWM(200); //Makes the tank move forward in the correct direction.
+  delay(1000); //Wait for 1 second...
+  tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0); //Kill motors
+  orient(); //Make sure orientation is a-ok
 }
+
+//GL;HF
