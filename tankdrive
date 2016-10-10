@@ -1,22 +1,21 @@
 #include <SoftwareSerial.h>
 #include <dfr_tank.h>
 #include "enes100.h"
-const double pi = 3.1415926;
 DFRTank tank;
 
 SoftwareSerial mySerial(8, 9); //RX is pin 8, TX is pin 9
 enes100::RfClient<SoftwareSerial> rf(&mySerial); 
 enes100::Marker marker;
-int markerNumber=18; //update this with whatever black and white marker you receive
+int markerNumber=16; //update this with whatever black and white marker you receive
 
 void getpos() {
-  rf.receiveMarker(&marker, 18); //get position of marker 18
-  if (rf.receiveMarker(&marker, 18) == false) { //If it failed...
-    rf.receiveMarker(&marker, 18); //do it again. Bad code!
-    delay(1000); //Wait 
+  while (!rf.receiveMarker(&marker, 16)) { //If it failed...
+    rf.sendMessage("It failedto get position.");
   }
-  rf.sendMessage("/nGot position.../n"); //Good boy
+ rf.sendMessage("\nGot my position.\n");
+  
 }
+
 void die() {
   while(true) { //Wait forever
       tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
@@ -26,22 +25,29 @@ void die() {
   }
 void orient() {
   getpos();
-  float dx = (3.100 - marker.x); float dy = (.4 - marker.y); //Figure out distances from position
-  float thetareq = atan(dx/dy); //Figure out required angle
-  if (thetareq < 0) {
-    thetareq = 2*pi + thetareq;
-  }
+  float dx = (2.91 - marker.x); float dy = (.37 - marker.y); //Figure out distances from position
+  float thetareq = atan2(dy,dx); //Figure out required angle
+  rf.sendMessage("\n");
+  rf.sendMessage("Got into orient code.");
   float dtheta = thetareq - marker.theta;
-    while (dtheta < -.1745 || dtheta > .1745) {
+    while (dtheta < .2) {
       getpos(); 
-      tank.setLeftMotorPWM(-150); tank.setRightMotorPWM(150);
+      tank.setLeftMotorPWM(-250); tank.setRightMotorPWM(250);
       delay(100); //Change this later? Only turns for .1 sec. 
       tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
-      delay(1000);
       getpos();
       float dtheta = thetareq - marker.theta;
+    while(dtheta > .2) {
+      getpos(); 
+      tank.setLeftMotorPWM(250); tank.setRightMotorPWM(-250);
+      delay(100); //Change this later? Only turns for .1 sec. 
+      tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0);
+      getpos();
+      float dtheta = thetareq - marker.theta;
+    }
   }
-   rf.sendMessage(marker.theta); rf.sendMessage(thetareq); //Tell RF the current angle and the needed angle.
+   rf.sendMessage("marker.theta is"); rf.sendMessage(marker.theta); 
+   rf.sendMessage("thetareq is"); rf.sendMessage(thetareq); //Tell RF the current angle and the needed angle.
 }
 
 void setup()
@@ -58,7 +64,6 @@ void setup()
   rf.resetServer();
   rf.sendMessage("\nWetWare is Connected\n"); //sent to mission control
   Serial.println("Wetware is Connected"); //sent to student's serial monitor
-  delay(1000);
   tank.init();
   getpos();
   orient();
@@ -68,7 +73,7 @@ void loop() {
   getpos();
   float dx = 3.100 - marker.x; float dy = 3.100 - marker.y; //Figure out distances from position
   float distance = sqrt(sq(dx) + sq(dy)); //Gets distance from target.
-  if (distance < .07) { //If we have arrived...
+  if (distance < .15) { //If we have arrived...
     die(); //heh
   }
   tank.setLeftMotorPWM(200); tank.setRightMotorPWM(200); //Go west, young man
