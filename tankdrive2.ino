@@ -8,10 +8,14 @@ enes100::RfClient<SoftwareSerial> rf(&mySerial);
 enes100::Marker marker;
 #define markerNumber 115 //update this with whatever black and white marker you receive
 
+void line() {
+  rf.sendMessage("\n");
+}
+
 void getpos() { //This is the routine that is called to get the position of the tank many times throughout the code.
-  while (!rf.receiveMarker(&marker, markerNumber)) { //This runs the builtin function that fills the .marker structure with x,y,and theta. 
+  do  { //This runs the builtin function that fills the .marker structure with x,y,and theta. 
     rf.sendMessage("\nThe RF failed to get the position.\n"); //If it didn't work, it will print this message and try again.
-  }
+  } while ((!rf.receiveMarker(&marker, markerNumber)));
  rf.sendMessage("\nGot my position.\n"); //This will tell you if it worked or not.
 }
 
@@ -28,41 +32,45 @@ void orient() { //This is the routine that the tank uses to get itself pointed i
   float d_x = (2.9 - marker.x); float d_y = (.35 - marker.y); //Figure out distances from position. 
   float theta_req = atan2(d_y,d_x); //Figure out required angle by using arctan. This puts out a value between -pi and pi.. Make sure this works
   float d_theta = theta_req - marker.theta;
-
   int dir;
-  if (d_theta > 0)
-  {
+  if (d_theta < 0)
+  { //declare dir as -1 for case switch
     dir = -1;
   }
   else 
-  {
+  { //declare dir as 1 for case switch
     dir = 1;  
   }
-  
+
   switch (dir) {
     case -1:
-    do
+    line(); rf.sendMessage("Turning Clockwise...");
+    while(d_theta < -.15)
     {
       getpos();
-      float d_theta = theta_req - marker.theta;
-      tank.setLeftMotorPWM(-250); 
-      tank.setRightMotorPWM(250);
-      delay(250);
-      tank.turnOffMotors();
-      delay(2000);
-    } while(d_theta < .2);
-      break;
-    case 1:
-        do
-    {
-      getpos();
-      float d_theta = theta_req - marker.theta;
+      d_theta = theta_req - marker.theta;
       tank.setLeftMotorPWM(250); 
       tank.setRightMotorPWM(-250);
-      delay(250);
+      delay(75);
       tank.turnOffMotors();
-      delay(2000);
-     } while(d_theta > -.2);
+      delay(1500);
+      line(); rf.sendMessage(d_theta);
+    }
+      break;
+      
+    case 1:
+      line(); rf.sendMessage("Turning anti-clockwise...");
+      while(d_theta > .15)
+    {
+      getpos();
+      d_theta = theta_req - marker.theta;
+      tank.setLeftMotorPWM(-250); 
+      tank.setRightMotorPWM(250);
+      delay(75);
+      tank.turnOffMotors();
+      delay(1500);
+      line(); rf.sendMessage(d_theta);
+     } 
       break;
   }
 } 
@@ -85,15 +93,17 @@ void setup()
 
 void loop() {
   getpos(); //get position
-  
-  float d_x = (.29 - marker.x); float d_y = (.35 - marker.y); //Figure out distances from position. 
+  float d_x = (2.9 - marker.x); 
+  float d_y = (.35 - marker.y); //Figure out distances from position. 
   float distance = sqrt(sq(d_x) + sq(d_y)); //Gets distance from target.
-  if (distance < .250) { //Within some arbitrary threshold. You may have to play with this.
+  line(); rf.sendMessage(marker.x);
+  line(); rf.sendMessage(d_x); line(); rf.sendMessage(d_y); line(); rf.sendMessage(distance);
+  if (distance < .15) { //Within some arbitrary threshold. You may have to play with this.
     die(); //Runs that die code.
   }
-  tank.setLeftMotorPWM(250); tank.setRightMotorPWM(250); //Makes the tank move forward in the correct direction.
-  delay(2000); //Wait for 1 second...
-  tank.setLeftMotorPWM(0); tank.setRightMotorPWM(0); //Kill motors
-  delay(5000);
-  // orient(); 
+  tank.setLeftMotorPWM(250); tank.setRightMotorPWM(250); 
+  delay(250); 
+  tank.turnOffMotors();
+  delay(500);
+  orient(); 
 }
